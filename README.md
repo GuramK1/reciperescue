@@ -40,7 +40,7 @@ npm run dev
 
 In PowerShell, use `Copy-Item .env.example .env.local` for the copy step.
 
-Open [127.0.0.1:3000](http://127.0.0.1:3000) and choose **Try this example**. The app starts in demo mode.
+Open [127.0.0.1:3000](http://127.0.0.1:3000) and choose **Try the cinnamon-roll example**. The app starts in demo mode.
 
 SQLite uses a native module. If installation needs a compiler, see [installation troubleshooting](docs/self-hosting.md#installation-troubleshooting), or run with Docker instead:
 

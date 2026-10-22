@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Check, ShieldCheck } from "lucide-react";
 import type { RescueResult } from "@/domain/rescue";
 import { safetySource } from "@/domain/safety";
 
@@ -14,24 +13,29 @@ const recoveryLabels = {
 export function RescueGuidance({
   result,
   children,
+  onEdit,
+  busy,
 }: {
   result: RescueResult;
   children: ReactNode;
+  onEdit: () => void;
+  busy: boolean;
 }) {
   const { analysis, recipe } = result;
   return (
     <div className="workspace-grid result-grid">
       <section className="result-main" aria-label="Rescue guidance">
-        <span
-          className={`badge ${analysis.safetyConcern ? "warning-badge" : ""}`}
+        <h2>{analysis.problem}</h2>
+        <p
+          className={`recovery-status ${analysis.safetyConcern ? "safety-status" : ""}`}
         >
           {recoveryLabels[analysis.recovery]}
-        </span>
-        <h2>{analysis.problem}</h2>
-        <p className="lede compact muted">{analysis.uncertainty}</p>
+        </p>
+        <p className="muted">{analysis.uncertainty}</p>
         {analysis.warnings.length > 0 && (
-          <div className="notice">
-            <ShieldCheck size={22} aria-hidden="true" />
+          <div
+            className={`notice ${analysis.safetyConcern ? "error-notice" : ""}`}
+          >
             <div>
               <h3>Keep in mind</h3>
               <ul>
@@ -39,11 +43,6 @@ export function RescueGuidance({
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
-              {analysis.safetyConcern && (
-                <a href={safetySource.url} target="_blank" rel="noreferrer">
-                  Read the FDA guidance
-                </a>
-              )}
             </div>
           </div>
         )}
@@ -60,7 +59,7 @@ export function RescueGuidance({
                     <h3>{step.title}</h3>
                     <p>{step.instruction}</p>
                     <p className="checkpoint">
-                      <Check size={17} aria-hidden="true" />
+                      <strong>What to look for</strong>
                       <span>{step.checkpoint}</span>
                     </p>
                     {step.caution && (
@@ -84,7 +83,11 @@ export function RescueGuidance({
         )}
         {children}
         <section className="result-section">
-          <h2>Why this can happen</h2>
+          <h2>
+            {analysis.safetyConcern
+              ? "What this means for the recipe"
+              : "Why this can happen"}
+          </h2>
           <p>{analysis.explanation}</p>
         </section>
         {analysis.prevention.length > 0 && (
@@ -108,9 +111,29 @@ export function RescueGuidance({
           </details>
         )}
       </section>
-      <aside className="context-panel">
-        <h2>Your recipe at a glance</h2>
+      <aside className="context-panel recipe-summary">
+        {analysis.safetyConcern && (
+          <>
+            <h2>A photo can’t establish safety.</h2>
+            <p>
+              Images may help describe texture. They cannot verify storage,
+              contamination or a safe internal temperature.
+            </p>
+            <a
+              className="text-link"
+              href={safetySource.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Read food safety guidance
+            </a>
+            <hr />
+          </>
+        )}
+        <h2>Your recipe</h2>
         <h3>{recipe.dish}</h3>
+        <p className="small">{recipe.stage}</p>
+        <hr />
         <ul className="summary-ingredients">
           {recipe.ingredients.map((ingredient, index) => (
             <li key={index}>
@@ -142,6 +165,14 @@ export function RescueGuidance({
             </ul>
           </>
         )}
+        <button
+          type="button"
+          className="button secondary"
+          onClick={onEdit}
+          disabled={busy}
+        >
+          {analysis.safetyConcern ? "Review recipe details" : "Edit recipe"}
+        </button>
       </aside>
     </div>
   );

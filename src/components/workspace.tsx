@@ -3,13 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
-  ArrowLeft,
-  ArrowRight,
+  ChevronDown,
   CircleAlert,
   ImagePlus,
   LoaderCircle,
-  Plus,
-  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -33,12 +30,12 @@ function Field({ label, id, hint, error, children }: FieldProps) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
+      {children}
       {hint && (
         <p id={`${id}-hint`} className="hint">
           {hint}
         </p>
       )}
-      {children}
       {error && (
         <p id={`${id}-error`} className="field-error">
           {error}
@@ -121,6 +118,12 @@ export function Workspace({
     setPhotoError("");
     if (fileInput.current) fileInput.current.value = "";
   }
+  function editRecipe() {
+    setResult(null);
+    setError("");
+    setFeedback("");
+    setCancelled(false);
+  }
   function selectImage(selected?: File) {
     setPhotoError("");
     setFile(null);
@@ -197,7 +200,7 @@ export function Workspace({
   const busyStatus = busy ? (
     <div className="loading-status" role="status">
       <LoaderCircle size={20} aria-hidden="true" className="spinner" />
-      <span>Looking at your recipe…</span>
+      <span>Checking your recipe…</span>
       <button
         type="button"
         className="text-link"
@@ -242,51 +245,65 @@ export function Workspace({
   );
   const modeNotice = (
     <div className="mode-notice">
-      <span className="badge">
+      <strong>
         {settings.demo ? "Demo · no AI analysis" : "AI-assisted guidance"}
-      </span>
+      </strong>
       {settings.demo && (
         <span>The demo uses a scripted cinnamon-roll example.</span>
       )}
     </div>
   );
 
+  const currentStep = !result
+    ? 0
+    : result.analysis.status === "needs_more_information"
+      ? 1
+      : 2;
+
   return (
     <main id="main" className="page workspace">
+      {!result?.analysis.safetyConcern && (
+        <ol className="rescue-progress" aria-label="Rescue progress">
+          {["Your recipe", "A useful question", "Next steps"].map(
+            (label, index) => (
+              <li
+                key={label}
+                aria-current={index === currentStep ? "step" : undefined}
+              >
+                {label}
+              </li>
+            ),
+          )}
+        </ol>
+      )}
       {result ? (
         <>
-          <button
-            type="button"
-            className="back-link"
-            disabled={busy}
-            onClick={() => {
-              setResult(null);
-              setError("");
-              setFeedback("");
-              setCancelled(false);
-            }}
-          >
-            {" "}
-            <ArrowLeft size={18} aria-hidden="true" /> Edit recipe & start again
-          </button>
           <div className="page-intro">
-            <span className="badge">
+            <h1 ref={resultHeading} tabIndex={-1}>
+              {result.analysis.safetyConcern
+                ? "A recipe fix isn’t the next step."
+                : result.analysis.status === "needs_more_information"
+                  ? "One useful question first."
+                  : "A way forward for your recipe."}
+            </h1>
+            <p className="muted">
+              {result.analysis.safetyConcern
+                ? "Food safety takes priority over texture or taste."
+                : `${result.recipe.dish} · ${result.recipe.stage}`}
+            </p>
+          </div>
+          <div
+            className={`mode-notice ${result.analysis.safetyConcern ? "error-notice" : ""}`}
+          >
+            <strong>
               {result.mode === "demo"
                 ? "Demo · illustrative guidance"
                 : result.mode === "safety"
                   ? "Food-safety guidance"
                   : "AI-assisted guidance"}
-            </span>
-            <h1 ref={resultHeading} tabIndex={-1}>
-              {result.analysis.status === "needs_more_information"
-                ? "One detail before we go on."
-                : "A way forward for your recipe."}
-            </h1>
-            <p className="lede compact">
-              {result.recipe.dish} · {result.recipe.stage}
-            </p>
+            </strong>
             {result.mode === "demo" && (
-              <p className="small muted">
+              <p>
                 Scripted example, not an assessment of your food. Updates show
                 the same example plan.
               </p>
@@ -309,15 +326,20 @@ export function Workspace({
               </p>
             </div>
           )}
-          <RescueGuidance result={result}>
+          <RescueGuidance result={result} onEdit={editRecipe} busy={busy}>
             {result.saved && (
               <form onSubmit={submit} className="follow-up" aria-busy={busy}>
+                <h2>
+                  {result.analysis.status === "needs_more_information"
+                    ? "Fill in what you know"
+                    : "How did it go?"}
+                </h2>
                 <Field
                   id="feedback"
                   label={
                     result.analysis.status === "needs_more_information"
                       ? "Your answer"
-                      : "How did it go?"
+                      : "Your observation"
                   }
                   hint={
                     result.mode === "safety"
@@ -344,8 +366,12 @@ export function Workspace({
                   disabled={busy || !feedback.trim()}
                   type="submit"
                 >
-                  {busy ? "Checking your update…" : "Update the guidance"}
-                  <ArrowRight size={18} aria-hidden="true" />
+                  {busy
+                    ? "Checking your update…"
+                    : result.analysis.status === "needs_more_information" &&
+                        !result.analysis.safetyConcern
+                      ? "Continue to next steps"
+                      : "Update the guidance"}
                 </button>
               </form>
             )}
@@ -354,12 +380,12 @@ export function Workspace({
       ) : (
         <>
           <div className="page-intro">
-            {modeNotice}
             <h1>Let’s work with what you have.</h1>
-            <p className="lede compact">
-              A few details help us find a useful next step.
+            <p className="muted">
+              A few useful details help us find the next question.
             </p>
           </div>
+          {modeNotice}
           {!settings.configured && (
             <div className="notice error-notice" role="alert">
               <CircleAlert aria-hidden="true" />
@@ -412,14 +438,13 @@ export function Workspace({
                   aria-labelledby="ingredients-title"
                 >
                   <div className="section-heading">
-                    <h2 id="ingredients-title">Ingredients</h2>
+                    <h2 id="ingredients-title">What went in?</h2>
                     <span className="small muted">
                       {recipe.ingredients.length} / 40
                     </span>
                   </div>
                   <p className="hint" id="ingredients-hint">
-                    Add amounts where you know them. Leave unknown amounts
-                    blank.
+                    Use amounts you know. Leave the rest blank.
                   </p>
                   <div className="ingredient-headers" aria-hidden="true">
                     <span>Ingredient</span>
@@ -431,6 +456,7 @@ export function Workspace({
                     {recipe.ingredients.map((item, i) => (
                       <div className="ingredient-row" key={i}>
                         <input
+                          className="ingredient-name"
                           id={`ingredients-${i}-name`}
                           aria-label={`Ingredient ${i + 1}`}
                           aria-describedby={`ingredients-hint${errors[`ingredients.${i}.name`] ? ` ingredients-${i}-name-error` : ""}`}
@@ -442,28 +468,46 @@ export function Workspace({
                           maxLength={100}
                           placeholder="Flour"
                         />
-                        <input
-                          aria-label={`Amount for ingredient ${i + 1}`}
-                          value={item.quantity}
-                          onChange={(e) =>
-                            ingredient(i, "quantity", e.target.value)
-                          }
-                          maxLength={40}
-                          placeholder="e.g. 500"
-                        />
-                        <input
-                          aria-label={`Unit for ingredient ${i + 1}`}
-                          value={item.unit}
-                          onChange={(e) =>
-                            ingredient(i, "unit", e.target.value)
-                          }
-                          maxLength={40}
-                          placeholder="g"
-                          list="ingredient-units"
-                        />
+                        <div className="ingredient-measurements">
+                          <label className="ingredient-amount">
+                            <span
+                              className="mobile-field-label"
+                              aria-hidden="true"
+                            >
+                              Amount
+                            </span>
+                            <input
+                              aria-label={`Amount for ingredient ${i + 1}`}
+                              value={item.quantity}
+                              onChange={(e) =>
+                                ingredient(i, "quantity", e.target.value)
+                              }
+                              maxLength={40}
+                              placeholder="Unknown"
+                            />
+                          </label>
+                          <label className="ingredient-unit">
+                            <span
+                              className="mobile-field-label"
+                              aria-hidden="true"
+                            >
+                              Unit
+                            </span>
+                            <input
+                              aria-label={`Unit for ingredient ${i + 1}`}
+                              value={item.unit}
+                              onChange={(e) =>
+                                ingredient(i, "unit", e.target.value)
+                              }
+                              maxLength={40}
+                              placeholder="Not set"
+                              list="ingredient-units"
+                            />
+                          </label>
+                        </div>
                         <button
                           type="button"
-                          className="icon-button"
+                          className="button secondary remove-ingredient"
                           aria-label={`Remove ingredient ${i + 1}`}
                           disabled={recipe.ingredients.length === 1}
                           onClick={() =>
@@ -475,7 +519,7 @@ export function Workspace({
                             )
                           }
                         >
-                          <Trash2 size={18} aria-hidden="true" />
+                          Remove
                         </button>
                       </div>
                     ))}
@@ -507,131 +551,161 @@ export function Workspace({
                     }
                     disabled={recipe.ingredients.length >= 40}
                   >
-                    <Plus size={18} aria-hidden="true" />
                     Add ingredient
                   </button>
                 </section>
-                <Field id="stage" label="Where are you in the recipe?">
-                  <select
-                    id="stage"
-                    value={recipe.stage}
-                    onChange={(e) =>
-                      update("stage", e.target.value as Recipe["stage"])
-                    }
-                  >
-                    {stages.map((stage) => (
-                      <option key={stage}>{stage}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field
-                  id="problem"
-                  label="What went wrong?"
-                  error={errors.problem}
+                <section
+                  className="form-section"
+                  aria-labelledby="problem-title"
                 >
-                  <textarea
-                    id="problem"
-                    value={recipe.problem}
-                    onChange={(e) => update("problem", e.target.value)}
-                    maxLength={4000}
-                    rows={4}
-                    placeholder="What does it look or feel like? What have you already tried?"
-                    aria-invalid={!!errors.problem}
-                    aria-describedby={
-                      errors.problem ? "problem-error" : undefined
-                    }
-                  />
-                </Field>
-                <Field
-                  id="context"
-                  label="Recipe or extra context (optional)"
-                  hint="The method, equipment, timing, or anything you changed."
-                >
-                  <textarea
-                    id="context"
-                    aria-describedby="context-hint"
-                    value={recipe.context}
-                    onChange={(e) => update("context", e.target.value)}
-                    maxLength={8000}
-                    rows={3}
-                    placeholder="Paste your recipe or add details here…"
-                  />
-                </Field>
-                <Field
-                  id="safetyConcern"
-                  label="Any concerns about food safety?"
-                  hint="For example, storage, spoilage, contamination, or allergens."
-                >
-                  <select
-                    id="safetyConcern"
-                    aria-describedby="safetyConcern-hint"
-                    value={recipe.safetyConcern}
-                    onChange={(e) =>
-                      update(
-                        "safetyConcern",
-                        e.target.value as Recipe["safetyConcern"],
-                      )
-                    }
-                  >
-                    <option value="no">No — a quality or texture issue</option>
-                    <option value="yes">Yes, a possible safety issue</option>
-                    <option value="unsure">I’m not sure</option>
-                  </select>
-                </Field>
-                <div className="upload-area">
-                  <ImagePlus size={24} strokeWidth={1.5} aria-hidden="true" />
-                  <div>
-                    <label htmlFor="photo">
-                      {settings.images
-                        ? "Add a photo (optional)"
-                        : `Photos are unavailable ${settings.demo ? "in demo mode" : "for this model"}`}
-                    </label>
-                    <p className="hint" id="photo-hint">
-                      {settings.images
-                        ? "One JPG, PNG, or WebP, up to 5 MB and 16 megapixels. Images cannot establish food safety."
-                        : "A vision-capable model must be enabled to analyze photos."}
-                    </p>
-                    {settings.images && (
-                      <input
-                        id="photo"
-                        ref={fileInput}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        aria-describedby="photo-hint"
-                        onChange={(e) => selectImage(e.target.files?.[0])}
+                  <h2 id="problem-title">Where did it go off track?</h2>
+                  <Field id="stage" label="Cooking stage">
+                    <div className="select-control">
+                      <select
+                        id="stage"
+                        value={recipe.stage}
+                        onChange={(e) =>
+                          update("stage", e.target.value as Recipe["stage"])
+                        }
+                      >
+                        {stages.map((stage) => (
+                          <option key={stage}>{stage}</option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={20}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
                       />
-                    )}
-                    {photoError && (
-                      <p className="field-error" role="alert">
-                        {photoError}
+                    </div>
+                  </Field>
+                  <Field
+                    id="problem"
+                    label="What went wrong?"
+                    error={errors.problem}
+                  >
+                    <textarea
+                      id="problem"
+                      value={recipe.problem}
+                      onChange={(e) => update("problem", e.target.value)}
+                      maxLength={4000}
+                      rows={4}
+                      placeholder="What does it look or feel like? What have you already tried?"
+                      aria-invalid={!!errors.problem}
+                      aria-describedby={
+                        errors.problem ? "problem-error" : undefined
+                      }
+                    />
+                  </Field>
+                  <Field
+                    id="context"
+                    label="Recipe or extra context (optional)"
+                    hint="The method, equipment, timing, or anything you changed."
+                  >
+                    <textarea
+                      id="context"
+                      aria-describedby="context-hint"
+                      value={recipe.context}
+                      onChange={(e) => update("context", e.target.value)}
+                      maxLength={8000}
+                      rows={3}
+                      placeholder="Paste your recipe or add details here…"
+                    />
+                  </Field>
+                </section>
+                <section
+                  className="form-section"
+                  aria-labelledby="safety-title"
+                >
+                  <h2 id="safety-title">Before we suggest a fix</h2>
+                  <Field
+                    id="safetyConcern"
+                    label="Any concerns about food safety?"
+                    hint="Choose Yes or Not sure if storage, spoilage, contamination, allergens or undercooking may be involved."
+                  >
+                    <div className="select-control">
+                      <select
+                        id="safetyConcern"
+                        aria-describedby="safetyConcern-hint"
+                        value={recipe.safetyConcern}
+                        onChange={(e) =>
+                          update(
+                            "safetyConcern",
+                            e.target.value as Recipe["safetyConcern"],
+                          )
+                        }
+                      >
+                        <option value="no">
+                          No · A quality or texture issue
+                        </option>
+                        <option value="yes">
+                          Yes, a possible safety issue
+                        </option>
+                        <option value="unsure">I’m not sure</option>
+                      </select>
+                      <ChevronDown
+                        size={20}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </Field>
+                  <div className="upload-area">
+                    <ImagePlus size={24} strokeWidth={1.5} aria-hidden="true" />
+                    <div>
+                      <label htmlFor="photo">
+                        {settings.images
+                          ? "Add a photo (optional)"
+                          : `Photos are unavailable ${settings.demo ? "in demo mode" : "for this model"}`}
+                      </label>
+                      <p className="hint" id="photo-hint">
+                        {settings.images
+                          ? "One JPG, PNG, or WebP, up to 5 MB and 16 megapixels. Images cannot establish food safety."
+                          : "A vision-capable model must be enabled to analyze photos."}
                       </p>
-                    )}
-                    {preview && (
-                      <div className="image-preview">
-                        <Image
-                          src={preview}
-                          width={240}
-                          height={160}
-                          unoptimized
-                          alt="Your selected cooking photo"
+                      {settings.images && (
+                        <input
+                          id="photo"
+                          ref={fileInput}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          aria-describedby="photo-hint"
+                          onChange={(e) => selectImage(e.target.files?.[0])}
                         />
-                        <button
-                          className="icon-button"
-                          type="button"
-                          aria-label="Remove photo"
-                          onClick={() => {
-                            selectImage();
-                            if (fileInput.current) fileInput.current.value = "";
-                          }}
-                        >
-                          <X size={18} aria-hidden="true" />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      {photoError && (
+                        <p className="field-error" role="alert">
+                          {photoError}
+                        </p>
+                      )}
+                      {preview && (
+                        <div className="image-preview">
+                          <Image
+                            src={preview}
+                            width={240}
+                            height={160}
+                            unoptimized
+                            alt="Your selected cooking photo"
+                          />
+                          <button
+                            className="icon-button"
+                            type="button"
+                            aria-label="Remove photo"
+                            onClick={() => {
+                              selectImage();
+                              if (fileInput.current)
+                                fileInput.current.value = "";
+                            }}
+                          >
+                            <X size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </section>
                 <p className="small muted">
-                  Recipe text is stored locally for up to 24 hours.{" "}
+                  Recipe text is stored on this installation for up to 24 hours.{" "}
                   {settings.demo
                     ? "Demo mode makes no AI requests."
                     : "Your recipe and any photo will be sent to the configured AI provider."}
@@ -641,15 +715,13 @@ export function Workspace({
                   className="button submit-button"
                   disabled={busy || !settings.configured}
                 >
-                  {busy ? "Looking at your recipe…" : "Find a way forward"}
-                  {busy ? (
+                  {busy ? "Checking your recipe…" : "Find a way forward"}
+                  {busy && (
                     <LoaderCircle
                       size={18}
                       className="spinner"
                       aria-hidden="true"
                     />
-                  ) : (
-                    <ArrowRight size={18} aria-hidden="true" />
                   )}
                 </button>
               </fieldset>
@@ -657,17 +729,17 @@ export function Workspace({
             </form>
             <aside className="context-panel">
               <h2>A useful detail beats a perfect description.</h2>
+              <h3>Describe what you notice</h3>
+              <p>Does it feel tight, sticky, greasy or unusually warm?</p>
+              <h3>Keep the recipe close</h3>
               <p>
-                What flour did you use? Was the dough kneaded by hand or in a
-                mixer? Did you change an ingredient?
+                Ingredient types, quantities and mixing method can change the
+                advice.
               </p>
               <hr />
-              <h3>Not sure of an amount?</h3>
-              <p>Leave it blank. We’ll ask if it makes a difference.</p>
-              <h3>Food safety comes first.</h3>
               <p>
-                A photograph can show texture, but cannot tell us whether food
-                is safe to eat.
+                You don’t need to guess. We’ll ask when a missing detail
+                matters.
               </p>
             </aside>
           </div>

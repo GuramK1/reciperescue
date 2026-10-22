@@ -1,5 +1,49 @@
 import { test, expect } from "@playwright/test";
 
+test("ingredient edits and narrow layouts keep the form usable", async ({
+  page,
+}) => {
+  for (const width of [320, 768, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ["/", "/rescue?example=1"]) {
+      await page.goto(path);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
+  }
+  await page
+    .getByRole("button", { name: "Remove ingredient 2", exact: true })
+    .click();
+  await expect(page.getByLabel("Ingredient 2", { exact: true })).toHaveValue(
+    "Yeast",
+  );
+  await page
+    .getByRole("button", { name: "Add ingredient", exact: true })
+    .click();
+  await page.getByLabel("Ingredient 6", { exact: true }).fill("Cardamom");
+  await page.getByLabel("Amount for ingredient 6", { exact: true }).fill("1");
+  await page.getByLabel("Unit for ingredient 6", { exact: true }).fill("tsp");
+  await page.getByRole("button", { name: "Find a way forward" }).click();
+  await expect(
+    page.getByRole("heading", { name: "One useful question first." }),
+  ).toBeVisible();
+  await expect(page.getByText("Cardamom", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await expect(page.getByLabel("Ingredient 6", { exact: true })).toHaveValue(
+    "Cardamom",
+  );
+  await expect(
+    page.getByLabel("Amount for ingredient 6", { exact: true }),
+  ).toHaveValue("1");
+  await expect(
+    page.getByLabel("Unit for ingredient 6", { exact: true }),
+  ).toHaveValue("tsp");
+  await expect(page.locator('[aria-current="step"]')).toHaveText("Your recipe");
+});
+
 test("landing and complete demo journey are usable without horizontal overflow", async ({
   page,
 }, testInfo) => {
@@ -13,7 +57,9 @@ test("landing and complete demo journey are usable without horizontal overflow",
     path: testInfo.outputPath("home.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Try this example" }).click();
+  await page
+    .getByRole("link", { name: "Try the cinnamon-roll example" })
+    .click();
   await expect(page.getByLabel("What are you making?")).toHaveValue(
     "Cinnamon rolls",
   );
@@ -26,21 +72,29 @@ test("landing and complete demo journey are usable without horizontal overflow",
   });
   await page.getByRole("button", { name: "Find a way forward" }).click();
   await expect(
-    page.getByRole("heading", { name: "One detail before we go on." }),
+    page.getByRole("heading", { name: "One useful question first." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "One detail before we go on." }),
+    page.getByRole("heading", { name: "One useful question first." }),
   ).toBeFocused();
   await expect(page.getByText("500 g", { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-current="step"]')).toHaveText(
+    "A useful question",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("clarification.png"),
+    fullPage: true,
+  });
   await page
     .getByLabel("Your answer", { exact: true })
     .fill("Bread flour, 500 g flour and 250 ml milk. I kneaded by hand.");
-  await page.getByRole("button", { name: "Update the guidance" }).click();
+  await page.getByRole("button", { name: "Continue to next steps" }).click();
   await expect(
     page.getByRole("heading", { name: "Try this next" }),
   ).toBeVisible();
   await expect(page.getByText("Demo · illustrative guidance")).toBeVisible();
   await expect(page.locator(".rescue-steps > li")).toHaveCount(3);
+  await expect(page.locator('[aria-current="step"]')).toHaveText("Next steps");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -82,7 +136,7 @@ test("validation and failed requests preserve entered data", async ({
   ).toHaveCount(0);
 });
 
-test("safety concern pauses rescue steps", async ({ page }) => {
+test("safety concern pauses rescue steps", async ({ page }, testInfo) => {
   await page.goto("/rescue?example=1");
   await page.getByLabel("Any concerns about food safety?").selectOption("yes");
   await page.getByRole("button", { name: "Find a way forward" }).click();
@@ -90,8 +144,22 @@ test("safety concern pauses rescue steps", async ({ page }) => {
     page.getByText("Food-safety guidance", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Read the FDA guidance" }),
+    page.getByRole("link", { name: "Read food safety guidance" }),
   ).toBeVisible();
+  await expect(page.locator(".rescue-steps")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "A recipe fix isn’t the next step." }),
+  ).toBeVisible();
+  await expect(page.locator(".rescue-progress")).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("safety.png"),
+    fullPage: true,
+  });
+  await page.getByRole("textbox").fill("It looks fine now, is it safe?");
+  await page.getByRole("button", { name: "Update the guidance" }).click();
+  await expect(
+    page.getByRole("heading", { name: "A recipe fix isn’t the next step." }),
+  ).toBeFocused();
   await expect(page.locator(".rescue-steps")).toHaveCount(0);
 });
 
@@ -107,18 +175,18 @@ test("unsaved guidance stays visible without offering follow-up", async ({
   await page.goto("/rescue?example=1");
   await page.getByRole("button", { name: "Find a way forward" }).click();
   await expect(
-    page.getByRole("heading", { name: "One detail before we go on." }),
+    page.getByRole("heading", { name: "One useful question first." }),
   ).toBeVisible();
   await expect(
     page.getByRole("alert").filter({ hasText: "couldn’t be saved" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Your recipe at a glance" }),
+    page.getByRole("heading", { name: "Your recipe" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Update the guidance" }),
+    page.getByRole("button", { name: "Continue to next steps" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Edit recipe & start again" }).click();
+  await page.getByRole("button", { name: "Edit recipe" }).click();
   await expect(page.getByLabel("What are you making?")).toHaveValue(
     "Cinnamon rolls",
   );
@@ -215,7 +283,7 @@ test("cancel and non-JSON errors preserve the recipe", async ({ page }) => {
   await page.getByRole("button", { name: "Find a way forward" }).click();
   await firstRequest;
   await expect(
-    page.getByRole("button", { name: "Looking at your recipe…" }),
+    page.getByRole("button", { name: "Checking your recipe…" }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Request cancelled");
