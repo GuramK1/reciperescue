@@ -1,0 +1,19 @@
+services:
+  reciperescue:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DEMO_MODE: ${DEMO_MODE:-true}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_SUPPORTS_IMAGES: ${AI_SUPPORTS_IMAGES:-false}
+      AI_RESPONSE_FORMAT: ${AI_RESPONSE_FORMAT:-json_schema}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-45000}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+    volumes:
+      - rescue-data:/app/data
+    restart: unless-stopped
+volumes:
+  rescue-data:

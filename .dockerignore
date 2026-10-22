@@ -1,0 +1,12 @@
+# Include only build inputs and runtime assets.
+**
+!package.json
+!package-lock.json
+!next.config.ts
+!next-env.d.ts
+!tsconfig.json
+!postcss.config.mjs
+!src/**/*.ts
+!src/**/*.tsx
+!src/**/*.css
+!public/licenses/*.txt

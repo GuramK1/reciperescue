@@ -1,0 +1,42 @@
+# Dependencies and build output
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Credentials and local recipe data
+.env*
+!.env.example
+data/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.pem
+*.key
+.npmrc
+
+# Local working files
+/.local/
+
+# Generated reports, logs, and caches; keep test source in tests/
+test-results/
+playwright-report/
+coverage/
+*.log
+*.tmp
+*.bak
+.cache/
+.turbo/
+.vercel/
+
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
